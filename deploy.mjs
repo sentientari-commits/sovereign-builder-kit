@@ -14,13 +14,13 @@
 
 import { execSync } from 'node:child_process';
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
 const target = args[0] || 'help';
-const projectDir = args[1] || process.cwd();
+const projectDir = resolve(args[1] || process.cwd());
 
 function log(msg) { console.log(`  [deploy] ${msg}`); }
 function run(cmd, opts = {}) {

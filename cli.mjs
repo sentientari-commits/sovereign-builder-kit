@@ -16,7 +16,7 @@
  *   sbk manifest        — Print the manifesto
  */
 
-import { execSync, spawn } from 'node:child_process';
+import { execSync, spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -149,9 +149,20 @@ async function models() {
 
 async function pull() {
   const model = rest || 'qwen2.5-coder:7b';
+
+  // Validate model name to prevent command injection
+  if (!/^[a-zA-Z0-9._:/-]+$/.test(model)) {
+    console.log(c.red('  Invalid model name. Use format: name:tag (e.g. qwen2.5-coder:7b)'));
+    process.exit(1);
+  }
+
   console.log(c.cyan(`\n  Pulling ${model}...\n`));
   try {
-    execSync(`ollama pull ${model}`, { stdio: 'inherit' });
+    // Use spawnSync with args array to bypass shell interpretation
+    const result = spawnSync('ollama', ['pull', model], { stdio: 'inherit' });
+    if (result.status !== 0) {
+      console.log(c.red('  Failed to pull model. Is Ollama running?'));
+    }
   } catch {
     console.log(c.red('  Failed to pull model. Is Ollama running?'));
   }

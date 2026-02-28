@@ -10,9 +10,7 @@
  */
 
 import crypto from 'node:crypto';
-
-// In production, use the `siwe` package. This is a minimal implementation
-// that works without npm install for maximum portability.
+import { SiweMessage } from 'siwe';
 
 // ── Session store (in-memory, swap for SQLite/Redis in production) ──
 
@@ -37,6 +35,13 @@ function cleanExpiredNonces() {
   }
 }
 
+function cleanExpiredSessions() {
+  const now = Date.now();
+  for (const [id, session] of sessions) {
+    if (now > session.expiresAt) sessions.delete(id);
+  }
+}
+
 // ── SIWE message construction ──────────────────────────────────────
 
 function constructSIWEMessage({ domain, address, statement, uri, version, chainId, nonce, issuedAt }) {
@@ -52,37 +57,26 @@ Nonce: ${nonce}
 Issued At: ${issuedAt}`;
 }
 
-// ── Signature verification ─────────────────────────────────────────
-// Minimal EIP-191 personal_sign verification
-// For production, use ethers.verifyMessage or viem's verifyMessage
+// ── Signature verification via siwe package ────────────────────────
 
-async function verifySignature(message, signature, expectedAddress) {
+async function verifySIWEMessage(message, signature) {
   try {
-    // Dynamic import — works with either ethers or viem
-    let recoveredAddress;
+    const siweMsg = new SiweMessage(message);
+    const result = await siweMsg.verify({ signature });
 
-    try {
-      const { verifyMessage } = await import('viem');
-      const { publicActions, createPublicClient, http } = await import('viem');
-      // viem's verifyMessage needs an account-style check
-      // Fall through to ethers
-      throw new Error('use ethers');
-    } catch {
-      try {
-        const { ethers } = await import('ethers');
-        recoveredAddress = ethers.verifyMessage(message, signature);
-      } catch {
-        // Last resort: basic check (NOT secure for production)
-        console.warn('[auth] No ethers or viem found — signature verification skipped');
-        console.warn('[auth] Install ethers or viem for real verification');
-        return true;
-      }
+    if (!result.success) {
+      console.error('[auth] SIWE verification failed:', result.error?.type);
+      return null;
     }
 
-    return recoveredAddress.toLowerCase() === expectedAddress.toLowerCase();
+    return {
+      address: siweMsg.address.toLowerCase(),
+      nonce: siweMsg.nonce,
+      chainId: siweMsg.chainId,
+    };
   } catch (err) {
-    console.error('[auth] Verification error:', err.message);
-    return false;
+    console.error('[auth] SIWE verification error:', err.message);
+    return null;
   }
 }
 
@@ -92,8 +86,9 @@ export function attachAuth(app, options = {}) {
   const domain = options.domain || 'localhost';
   const statement = options.statement || 'Sign in to Sovereign Builder Kit';
 
-  // Cleanup expired nonces every minute
+  // Cleanup expired nonces and sessions
   setInterval(cleanExpiredNonces, 60_000);
+  setInterval(cleanExpiredSessions, 5 * 60_000);
 
   // ── GET /auth/nonce ──
   app.post('/auth/nonce', (req, res) => {
@@ -130,16 +125,14 @@ export function attachAuth(app, options = {}) {
       return res.status(400).json({ error: 'message and signature required' });
     }
 
-    // Extract nonce and address from message
-    const nonceMatch = message.match(/Nonce: ([a-f0-9]+)/);
-    const addressMatch = message.match(/0x[a-fA-F0-9]{40}/);
-
-    if (!nonceMatch || !addressMatch) {
-      return res.status(400).json({ error: 'Invalid SIWE message format' });
+    // Verify using siwe package — handles signature recovery, address extraction,
+    // and message format validation per EIP-4361 spec
+    const verified = await verifySIWEMessage(message, signature);
+    if (!verified) {
+      return res.status(401).json({ error: 'Invalid signature or message' });
     }
 
-    const nonce = nonceMatch[1];
-    const address = addressMatch[0];
+    const { address, nonce } = verified;
 
     // Check nonce exists and hasn't expired
     const nonceData = nonces.get(nonce);
@@ -152,14 +145,8 @@ export function attachAuth(app, options = {}) {
       return res.status(401).json({ error: 'Nonce expired' });
     }
 
-    if (nonceData.address !== address.toLowerCase()) {
+    if (nonceData.address !== address) {
       return res.status(401).json({ error: 'Address mismatch' });
-    }
-
-    // Verify signature
-    const valid = await verifySignature(message, signature, address);
-    if (!valid) {
-      return res.status(401).json({ error: 'Invalid signature' });
     }
 
     // Consume nonce (one-time use)
@@ -169,22 +156,22 @@ export function attachAuth(app, options = {}) {
     const sessionId = crypto.randomBytes(32).toString('hex');
     const now = Date.now();
     sessions.set(sessionId, {
-      address: address.toLowerCase(),
-      chainId: options.chainId || 8453,
+      address,
+      chainId: verified.chainId || options.chainId || 8453,
       issuedAt: now,
       expiresAt: now + SESSION_DURATION,
     });
 
     res.json({
       sessionId,
-      address: address.toLowerCase(),
+      address,
       expiresAt: new Date(now + SESSION_DURATION).toISOString(),
     });
   });
 
   // ── GET /auth/session ──
   app.get('/auth/session', (req, res) => {
-    const sessionId = req.headers['x-session-id'] || req.query.sessionId;
+    const sessionId = req.headers['x-session-id'];
 
     if (!sessionId) {
       return res.status(401).json({ error: 'No session' });
@@ -267,7 +254,7 @@ async function signInWithEthereum(serverUrl) {
   const session = await verifyRes.json();
 
   // 5. Store session
-  localStorage.setItem('sbk-session', session.sessionId);
+  sessionStorage.setItem('sbk-session', session.sessionId);
   return session;
 }
 `;
