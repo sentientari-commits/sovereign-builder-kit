@@ -1,0 +1,6 @@
+node_modules/
+.env
+*.token
+dist/
+deploy/
+.DS_Store

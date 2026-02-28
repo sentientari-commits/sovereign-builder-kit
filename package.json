@@ -1,0 +1,22 @@
+{
+  "name": "sovereign-builder-kit",
+  "version": "0.1.0",
+  "description": "Self-contained, local-first dev toolkit. Build web3 apps without cloud AI, app stores, or compliance gatekeepers.",
+  "type": "module",
+  "bin": {
+    "sbk": "./cli.mjs"
+  },
+  "scripts": {
+    "dev": "node server.mjs",
+    "setup": "node setup.mjs",
+    "new": "node scaffold.mjs"
+  },
+  "dependencies": {
+    "ethers": "^6.13.0",
+    "express": "^4.21.0",
+    "siwe": "^2.3.2",
+    "viem": "^2.21.0"
+  },
+  "keywords": ["local-first", "web3", "sovereign", "ollama", "siwe", "no-cloud"],
+  "license": "MIT"
+}
