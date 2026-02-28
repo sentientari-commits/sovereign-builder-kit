@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sovereign Builder Kit</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111;
+    --border: #1a1a1a;
+    --text: #e0e0e0;
+    --dim: #666;
+    --green: #00ff88;
+    --green-dim: #00ff8833;
+    --cyan: #00d4ff;
+    --red: #ff4444;
+    --yellow: #ffaa00;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .logo h1 {
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+
+  .status-pill {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-weight: 500;
+  }
+
+  .status-pill.ok { background: var(--green-dim); color: var(--green); }
+  .status-pill.err { background: #ff444433; color: var(--red); }
+  .status-pill.loading { background: #ffaa0033; color: var(--yellow); }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .model-name {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.75rem;
+    color: var(--dim);
+  }
+
+  /* ── Main layout ── */
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Welcome (shown when no messages) ── */
+  .welcome {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    text-align: center;
+    gap: 2rem;
+  }
+
+  .welcome.hidden { display: none; }
+
+  .welcome h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--green);
+  }
+
+  .welcome p {
+    color: var(--dim);
+    max-width: 480px;
+    line-height: 1.6;
+  }
+
+  .welcome p strong {
+    color: var(--text);
+  }
+
+  .starters {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    max-width: 560px;
+    width: 100%;
+  }
+
+  .starter {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    color: var(--text);
+    font-size: 0.85rem;
+    line-height: 1.4;
+  }
+
+  .starter:hover {
+    border-color: var(--green);
+    background: #0d1a0f;
+  }
+
+  .starter .label {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    color: var(--green);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* ── Chat area ── */
+  .chat {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .chat.hidden { display: none; }
+
+  .msg {
+    max-width: 720px;
+    width: 100%;
+    margin: 0 auto;
+    line-height: 1.7;
+  }
+
+  .msg.user {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+    color: var(--text);
+  }
+
+  .msg.ai {
+    color: var(--text);
+    padding: 0.5rem 0;
+  }
+
+  .msg.ai pre {
+    background: #0d0d0d;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    overflow-x: auto;
+    margin: 0.75rem 0;
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+
+  .msg.ai code {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.85rem;
+  }
+
+  .msg.ai p { margin: 0.5rem 0; }
+
+  .typing {
+    color: var(--dim);
+    font-style: italic;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+
+  /* ── Input area ── */
+  .input-area {
+    padding: 1rem 1.5rem 1.5rem;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .input-row {
+    max-width: 720px;
+    margin: 0 auto;
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-end;
+  }
+
+  .input-wrap {
+    flex: 1;
+    position: relative;
+  }
+
+  textarea {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.95rem;
+    padding: 0.75rem 1rem;
+    resize: none;
+    outline: none;
+    min-height: 48px;
+    max-height: 200px;
+    line-height: 1.5;
+    transition: border-color 0.2s;
+  }
+
+  textarea:focus { border-color: var(--green); }
+
+  textarea::placeholder { color: var(--dim); }
+
+  .send-btn {
+    background: var(--green);
+    color: #000;
+    border: none;
+    border-radius: 12px;
+    width: 48px;
+    height: 48px;
+    cursor: pointer;
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: opacity 0.2s;
+  }
+
+  .send-btn:hover { opacity: 0.8; }
+  .send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .mode-bar {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 0.5rem;
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .mode-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--dim);
+    font-size: 0.7rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    transition: all 0.2s;
+  }
+
+  .mode-btn:hover { border-color: var(--dim); color: var(--text); }
+  .mode-btn.active { border-color: var(--green); color: var(--green); background: var(--green-dim); }
+
+  .hint {
+    max-width: 720px;
+    margin: 0.5rem auto 0;
+    font-size: 0.7rem;
+    color: var(--dim);
+    text-align: right;
+  }
+
+  /* ── Offline banner ── */
+  .offline-banner {
+    background: #ff444422;
+    border-bottom: 1px solid var(--red);
+    padding: 0.75rem 1.5rem;
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--red);
+    display: none;
+  }
+
+  .offline-banner.show { display: block; }
+
+  /* ── Responsive ── */
+  @media (max-width: 600px) {
+    .starters { grid-template-columns: 1fr; }
+    .welcome h2 { font-size: 1.2rem; }
+    header { padding: 0.75rem 1rem; }
+    .input-area { padding: 0.75rem 1rem 1rem; }
+    .chat { padding: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="offline-banner" id="offlineBanner">
+  Ollama is not running. Start it with: <strong>ollama serve</strong>
+</div>
+
+<header>
+  <div class="logo">
+    <h1>SOVEREIGN BUILDER KIT</h1>
+    <span class="status-pill loading" id="statusPill">connecting...</span>
+  </div>
+  <div class="header-right">
+    <span class="model-name" id="modelName">--</span>
+  </div>
+</header>
+
+<main>
+  <div class="welcome" id="welcome">
+    <div>
+      <h2>Your AI runs on your machine.</h2>
+      <p>
+        This is a local code assistant. It uses <strong>Ollama</strong> running on your hardware.
+        No cloud. No API key. No account. No one watching.
+        Ask it anything about code, or pick a starter below.
+      </p>
+    </div>
+    <div class="starters">
+      <div class="starter" onclick="sendStarter(this)">
+        <div class="label">Build</div>
+        Write a React component with wallet login using ethers.js. No OAuth, just MetaMask.
+      </div>
+      <div class="starter" onclick="sendStarter(this)">
+        <div class="label">Scaffold</div>
+        Create a full Next.js project with SIWE authentication and a simple dashboard page.
+      </div>
+      <div class="starter" onclick="sendStarter(this)">
+        <div class="label">Review</div>
+        Review this code for security issues: fetch(url).then(r =&gt; r.json()).then(d =&gt; el.innerHTML = d.name)
+      </div>
+      <div class="starter" onclick="sendStarter(this)">
+        <div class="label">Explain</div>
+        What is SIWE (Sign In With Ethereum) and why would I use it instead of passwords?
+      </div>
+    </div>
+  </div>
+
+  <div class="chat hidden" id="chat"></div>
+</main>
+
+<div class="input-area">
+  <div class="mode-bar">
+    <button class="mode-btn active" data-mode="code" onclick="setMode(this)">code</button>
+    <button class="mode-btn" data-mode="review" onclick="setMode(this)">review</button>
+    <button class="mode-btn" data-mode="scaffold" onclick="setMode(this)">scaffold</button>
+    <button class="mode-btn" data-mode="general" onclick="setMode(this)">general</button>
+  </div>
+  <div class="input-row">
+    <div class="input-wrap">
+      <textarea id="input" placeholder="Ask anything about code..." rows="1"
+        onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+    </div>
+    <button class="send-btn" id="sendBtn" onclick="send()">&#8593;</button>
+  </div>
+  <div class="hint">Enter to send &middot; Shift+Enter for new line &middot; runs 100% on your machine</div>
+</div>
+
+<script>
+const chatEl = document.getElementById('chat');
+const welcomeEl = document.getElementById('welcome');
+const inputEl = document.getElementById('input');
+const sendBtn = document.getElementById('sendBtn');
+const statusPill = document.getElementById('statusPill');
+const modelNameEl = document.getElementById('modelName');
+const offlineBanner = document.getElementById('offlineBanner');
+
+let mode = 'code';
+let history = [];
+let sending = false;
+
+// ── Health check ──
+
+async function checkHealth() {
+  try {
+    const res = await fetch('/health');
+    const data = await res.json();
+    statusPill.textContent = 'local';
+    statusPill.className = 'status-pill ok';
+    modelNameEl.textContent = data.model || 'unknown';
+
+    if (data.ollama !== 'connected') {
+      offlineBanner.classList.add('show');
+    } else {
+      offlineBanner.classList.remove('show');
+    }
+  } catch {
+    statusPill.textContent = 'offline';
+    statusPill.className = 'status-pill err';
+    offlineBanner.classList.add('show');
+  }
+}
+
+checkHealth();
+setInterval(checkHealth, 15000);
+
+// ── Mode switching ──
+
+function setMode(btn) {
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  mode = btn.dataset.mode;
+
+  const placeholders = {
+    code: 'Ask anything about code...',
+    review: 'Paste code to review for bugs and security...',
+    scaffold: 'Describe a project to generate...',
+    general: 'Ask anything...',
+  };
+  inputEl.placeholder = placeholders[mode] || placeholders.general;
+}
+
+// ── Chat ──
+
+function addMessage(role, content) {
+  welcomeEl.classList.add('hidden');
+  chatEl.classList.remove('hidden');
+
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+
+  if (role === 'ai') {
+    div.innerHTML = formatMarkdown(content);
+  } else {
+    div.textContent = content;
+  }
+
+  chatEl.appendChild(div);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return div;
+}
+
+function formatMarkdown(text) {
+  // Basic markdown: code blocks, inline code, bold, headers
+  let html = text
+    // Code blocks
+    .replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+      return `<pre><code>${escapeHtml(code.trim())}</code></pre>`;
+    })
+    // Inline code
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    // Bold
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    // Headers
+    .replace(/^### (.+)$/gm, '<h4>$1</h4>')
+    .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+    // Paragraphs
+    .replace(/\n\n/g, '</p><p>')
+    // Line breaks
+    .replace(/\n/g, '<br>');
+
+  return `<p>${html}</p>`;
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function send(overrideText) {
+  const text = overrideText || inputEl.value.trim();
+  if (!text || sending) return;
+
+  sending = true;
+  sendBtn.disabled = true;
+  inputEl.value = '';
+  autoResize(inputEl);
+
+  addMessage('user', text);
+  history.push({ role: 'user', content: text });
+
+  const aiDiv = addMessage('ai', '');
+  aiDiv.innerHTML = '<span class="typing">thinking...</span>';
+
+  try {
+    const res = await fetch('/chat/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text, mode, history: history.slice(-10) }),
+    });
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let fullResponse = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
+
+      for (const line of lines) {
+        try {
+          const data = JSON.parse(line.slice(6));
+          if (data.token) {
+            fullResponse += data.token;
+            aiDiv.innerHTML = formatMarkdown(fullResponse);
+            chatEl.scrollTop = chatEl.scrollHeight;
+          }
+        } catch {}
+      }
+    }
+
+    if (!fullResponse) {
+      // Fallback to non-streaming
+      const res2 = await fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, mode, history: history.slice(-10) }),
+      });
+      const data = await res2.json();
+      fullResponse = data.response || 'No response from model.';
+      aiDiv.innerHTML = formatMarkdown(fullResponse);
+    }
+
+    history.push({ role: 'assistant', content: fullResponse });
+
+  } catch (err) {
+    aiDiv.innerHTML = `<span style="color: var(--red)">Error: ${escapeHtml(err.message)}. Is Ollama running?</span>`;
+  }
+
+  sending = false;
+  sendBtn.disabled = false;
+  inputEl.focus();
+}
+
+function sendStarter(el) {
+  const text = el.textContent.replace(el.querySelector('.label').textContent, '').trim();
+  const label = el.querySelector('.label').textContent.toLowerCase();
+
+  // Switch to appropriate mode
+  const modeMap = { build: 'code', scaffold: 'scaffold', review: 'review', explain: 'general' };
+  const targetMode = modeMap[label] || 'code';
+  const btn = document.querySelector(`.mode-btn[data-mode="${targetMode}"]`);
+  if (btn) setMode(btn);
+
+  send(text);
+}
+
+// ── Input handling ──
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    send();
+  }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+}
+
+inputEl.focus();
+</script>
+</body>
+</html>
