@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const PORT = process.env.SBK_PORT || 3777;
+const PORT = process.env.SBK_PORT || 3776;
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 
 // ── Model selection ────────────────────────────────────────────────

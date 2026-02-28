@@ -27,7 +27,7 @@ const command = args[0] || 'help';
 const rest = args.slice(1).join(' ');
 
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
-const SBK_URL = process.env.SBK_URL || 'http://localhost:3777';
+const SBK_URL = process.env.SBK_URL || 'http://localhost:3776';
 
 // ── Colors (no dependencies) ──────────────────────────────────────
 
