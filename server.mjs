@@ -37,40 +37,57 @@ function validateOllamaUrl(url) {
 validateOllamaUrl(OLLAMA_URL);
 
 // ── Model selection ────────────────────────────────────────────────
-// Auto-detect best available model on startup
+// Mode-aware model selection: uncensored for general, coding models for code
 
-async function detectBestModel() {
+const MODEL_PREFERENCES = {
+  // Uncensored models for general conversation — no refusals
+  general: [
+    'dolphin-llama3:8b',
+    'dolphin-mistral:7b',
+    'dolphin-mixtral:8x7b',
+    'nous-hermes2:10.7b',
+    'llama3.2:latest',
+    'mistral:latest',
+  ],
+  // Coding-specialized models
+  code: [
+    'qwen2.5-coder:14b',
+    'qwen2.5-coder:7b',
+    'codellama:13b',
+    'codellama:7b',
+    'deepseek-coder-v2:16b',
+    'deepseek-r1:14b',
+    'deepseek-r1:7b',
+    'deepseek-r1:1.5b',
+  ],
+};
+
+async function getAvailableModels() {
   try {
     const res = await fetch(`${OLLAMA_URL}/api/tags`);
     const data = await res.json();
-    const models = data.models?.map(m => m.name) || [];
-
-    // Preference order: best coding model first
-    const preferred = [
-      'qwen2.5-coder:14b',
-      'qwen2.5-coder:7b',
-      'codellama:13b',
-      'codellama:7b',
-      'deepseek-coder-v2:16b',
-      'deepseek-r1:14b',
-      'deepseek-r1:7b',
-      'deepseek-r1:1.5b',
-      'llama3.2:latest',
-      'mistral:latest',
-    ];
-
-    for (const model of preferred) {
-      if (models.some(m => m.startsWith(model.split(':')[0]))) {
-        const match = models.find(m => m.startsWith(model.split(':')[0]));
-        return match;
-      }
-    }
-
-    // Fall back to whatever is available
-    return models[0] || 'qwen2.5-coder:7b';
+    return data.models?.map(m => m.name) || [];
   } catch {
-    return 'qwen2.5-coder:7b';
+    return [];
   }
+}
+
+function pickBestModel(available, preferenceList) {
+  for (const model of preferenceList) {
+    const prefix = model.split(':')[0];
+    const match = available.find(m => m.startsWith(prefix));
+    if (match) return match;
+  }
+  return null;
+}
+
+async function detectModels() {
+  const available = await getAvailableModels();
+
+  const codeModel = pickBestModel(available, MODEL_PREFERENCES.code) || available[0] || 'qwen2.5-coder:7b';
+  const generalModel = pickBestModel(available, MODEL_PREFERENCES.general) || codeModel;
+
+  return { code: codeModel, general: generalModel, available };
 }
 
 // ── Ollama proxy with code-assist prompts ──────────────────────────
@@ -119,7 +136,7 @@ async function queryOllama(model, messages, stream = false) {
 
 // ── HTTP Server ────────────────────────────────────────────────────
 
-let activeModel = null;
+let activeModels = { code: null, general: null };
 
 async function handleRequest(req, res) {
   // CORS restricted to localhost origins only
@@ -149,7 +166,8 @@ async function handleRequest(req, res) {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       status: 'ok',
-      model: activeModel,
+      model: activeModels.code,
+      generalModel: activeModels.general,
       ollama: ollamaOk ? 'connected' : 'disconnected',
       port: PORT,
     }));
@@ -163,7 +181,7 @@ async function handleRequest(req, res) {
       const data = await check.json();
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
-        active: activeModel,
+        active: activeModels,
         available: data.models?.map(m => ({
           name: m.name,
           size: m.size,
@@ -188,7 +206,10 @@ async function handleRequest(req, res) {
       return;
     }
 
-    const useModel = model || activeModel;
+    // Pick model: code modes get coding model, everything else gets uncensored general model
+    const isCodeMode = mode === 'code' || mode === 'review' || mode === 'scaffold';
+    const defaultModel = isCodeMode ? activeModels.code : activeModels.general;
+    const useModel = model || defaultModel;
     const systemPrompt = SYSTEM_PROMPTS[mode] || SYSTEM_PROMPTS.general;
 
     // Sanitize history: only allow user/assistant roles, truncate content
@@ -220,7 +241,9 @@ async function handleRequest(req, res) {
     const body = await readBody(req);
     const { message, mode = 'general', history = [], model } = body;
 
-    const useModel = model || activeModel;
+    const isCodeMode = mode === 'code' || mode === 'review' || mode === 'scaffold';
+    const defaultModel = isCodeMode ? activeModels.code : activeModels.general;
+    const useModel = model || defaultModel;
     const systemPrompt = SYSTEM_PROMPTS[mode] || SYSTEM_PROMPTS.general;
 
     const safeHistory = sanitizeHistory(history);
@@ -299,7 +322,7 @@ Output every file needed.`;
     ];
 
     try {
-      const response = await queryOllama(activeModel, messages);
+      const response = await queryOllama(activeModels.code, messages);
 
       // Parse files from response
       const files = parseScaffoldOutput(response);
@@ -405,7 +428,7 @@ GET  /models        — List available local models</code></pre>
       el.textContent = '';
       const t = (s) => document.createTextNode(s);
       const b = (s) => { const e = document.createElement('b'); e.textContent = s; return e; };
-      el.append(t('Model: '), b(d.model), t(' | Ollama: '), b(d.ollama), t(' | Port: '), b(String(d.port)));
+      el.append(t('Code: '), b(d.model), t(' | General: '), b(d.generalModel || d.model), t(' | Ollama: '), b(d.ollama));
     }).catch(()=>{
       document.getElementById('status').className='status err';
       document.getElementById('status').textContent='Server error';
@@ -418,7 +441,7 @@ GET  /models        — List available local models</code></pre>
 
 const server = http.createServer(handleRequest);
 
-activeModel = await detectBestModel();
+activeModels = await detectModels();
 
 server.listen(PORT, () => {
   console.log('');
@@ -428,7 +451,8 @@ server.listen(PORT, () => {
   console.log('  └─────────────────────────────────────────┘');
   console.log('');
   console.log(`  Server:  http://localhost:${PORT}`);
-  console.log(`  Model:   ${activeModel}`);
+  console.log(`  Code:    ${activeModels.code}`);
+  console.log(`  General: ${activeModels.general}`);
   console.log(`  Ollama:  ${OLLAMA_URL}`);
   console.log('');
   console.log('  Endpoints:');
